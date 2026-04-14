@@ -1,0 +1,25 @@
+# Environment
+.env
+.env.*
+
+# Claude Code local config & agents
+.claude/
+
+# Progress / notes (not for version control)
+PROGRESS.md
+progress.md
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# Logs
+*.log
