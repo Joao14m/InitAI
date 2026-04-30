@@ -3,6 +3,31 @@
 import { useRouter } from 'next/navigation'
 import { use, useEffect, useRef, useState } from 'react'
 
+interface SpeechRecognition extends EventTarget {
+  continuous: boolean
+  interimResults: boolean
+  lang: string
+  start(): void
+  stop(): void
+  onresult: ((event: SpeechRecognitionEvent) => void) | null
+  onend: (() => void) | null
+  onerror: ((event: SpeechRecognitionErrorEvent) => void) | null
+}
+interface SpeechRecognitionEvent extends Event {
+  resultIndex: number
+  results: SpeechRecognitionResultList
+}
+interface SpeechRecognitionErrorEvent extends Event {
+  error: string
+}
+declare const SpeechRecognition: new () => SpeechRecognition
+declare global {
+  interface Window {
+    SpeechRecognition?: new () => SpeechRecognition
+    webkitSpeechRecognition?: new () => SpeechRecognition
+  }
+}
+
 const API_BASE = 'http://localhost:8080'
 const DEFAULT_MINUTES = 15
 
@@ -50,7 +75,7 @@ export default function BehavioralChat({ paramsPromise }: BehavioralChatProps) {
     return () => clearInterval(timerRef.current!)
   }, [started])
 
-  const recognitionRef = useRef<any>(null)
+  const recognitionRef = useRef<SpeechRecognition | null>(null)
 
   async function sendMessage(text: string) {
     if (!text.trim() || sending) return
@@ -85,7 +110,7 @@ export default function BehavioralChat({ paramsPromise }: BehavioralChatProps) {
   }
 
   function startListening() {
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
     if (!SR) { alert('Speech recognition requires Chrome or Edge.'); return }
 
     if (listening) {
@@ -100,7 +125,7 @@ export default function BehavioralChat({ paramsPromise }: BehavioralChatProps) {
 
     const accumulated: string[] = []
 
-    recognition.onresult = (event: any) => {
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
       let interim = ''
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const result = event.results[i]
@@ -117,7 +142,7 @@ export default function BehavioralChat({ paramsPromise }: BehavioralChatProps) {
       if (final) sendMessage(final)
     }
 
-    recognition.onerror = (e: any) => {
+    recognition.onerror = (e: SpeechRecognitionErrorEvent) => {
       if (e.error === 'no-speech') return
       setListening(false)
       recognitionRef.current = null
@@ -141,10 +166,11 @@ export default function BehavioralChat({ paramsPromise }: BehavioralChatProps) {
     return (
       <>
         <style>{interviewStyles}</style>
-        <div style={{ background: 'radial-gradient(ellipse at 50% 30%, #0d1e40 0%, #080f20 70%)' }}
-          className="h-screen flex items-center justify-center">
+        <div style={{ background: 'radial-gradient(ellipse at 50% 30%, #0d1e40 0%, #080f20 70%)', minHeight: '100vh', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div className="text-center space-y-6 max-w-sm px-6">
-            <AlexAvatar speaking={false} />
+            <div className="flex justify-center">
+              <AlexAvatar speaking={false} />
+            </div>
             <div className="space-y-1.5">
               <p className="text-slate-300 text-sm leading-relaxed">
                 Alex will ask you one behavioral question and one follow-up.

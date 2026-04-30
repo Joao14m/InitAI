@@ -4,6 +4,31 @@ import Editor from '@monaco-editor/react'
 import { use, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
+interface SpeechRecognition extends EventTarget {
+  continuous: boolean
+  interimResults: boolean
+  lang: string
+  start(): void
+  stop(): void
+  onresult: ((event: SpeechRecognitionEvent) => void) | null
+  onend: (() => void) | null
+  onerror: ((event: SpeechRecognitionErrorEvent) => void) | null
+}
+interface SpeechRecognitionEvent extends Event {
+  resultIndex: number
+  results: SpeechRecognitionResultList
+}
+interface SpeechRecognitionErrorEvent extends Event {
+  error: string
+}
+declare const SpeechRecognition: new () => SpeechRecognition
+declare global {
+  interface Window {
+    SpeechRecognition?: new () => SpeechRecognition
+    webkitSpeechRecognition?: new () => SpeechRecognition
+  }
+}
+
 const API_BASE = 'http://localhost:8080'
 
 interface Problem {
@@ -55,8 +80,8 @@ export default function SessionCodeEditor({ paramsPromise }: Props) {
   const [alexReply, setAlexReply] = useState<string | null>(null)
   const [alexReplyType, setAlexReplyType] = useState<'hint' | 'talk'>('hint')
   const [alexSpeaking, setAlexSpeaking] = useState(false)
-  const askRecognitionRef = useRef<any>(null)
-  const talkRecognitionRef = useRef<any>(null)
+  const askRecognitionRef = useRef<SpeechRecognition | null>(null)
+  const talkRecognitionRef = useRef<SpeechRecognition | null>(null)
 
   useEffect(() => {
     fetch(`${API_BASE}/api/sessions/${sessionId}/problem`)
@@ -96,7 +121,8 @@ export default function SessionCodeEditor({ paramsPromise }: Props) {
     setAskTranscript('')
     setAlexReplyType(type)
     try {
-      const res = await fetch(`${API_BASE}/api/sessions/${sessionId}/hint`, {
+      const endpoint = type === 'hint' ? 'hint' : 'talk'
+      const res = await fetch(`${API_BASE}/api/sessions/${sessionId}/${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code, question }),
@@ -116,7 +142,7 @@ export default function SessionCodeEditor({ paramsPromise }: Props) {
   }
 
   function startAskListening() {
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
     if (!SR) { alert('Speech recognition requires Chrome or Edge.'); return }
     if (askListening) { askRecognitionRef.current?.stop(); return }
 
@@ -125,9 +151,9 @@ export default function SessionCodeEditor({ paramsPromise }: Props) {
     recognition.interimResults = true
     recognition.lang = 'en-US'
 
-    recognition.onresult = (event: any) => {
-      const interim = Array.from(event.results as any[])
-        .map((r: any) => r[0].transcript).join('')
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
+      const interim = Array.from(event.results)
+        .map((r: SpeechRecognitionResult) => r[0].transcript).join('')
       setAskTranscript(interim)
       if (event.results[event.results.length - 1].isFinal) {
         recognition.stop()
@@ -143,7 +169,7 @@ export default function SessionCodeEditor({ paramsPromise }: Props) {
   }
 
   function startTalkListening() {
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
     if (!SR) { alert('Speech recognition requires Chrome or Edge.'); return }
     if (talkListening) { talkRecognitionRef.current?.stop(); return }
 
@@ -152,26 +178,27 @@ export default function SessionCodeEditor({ paramsPromise }: Props) {
     recognition.interimResults = true
     recognition.lang = 'en-US'
 
-    const accumulated: string[] = []
+    const accumulated: string[] = [] // persistent array
 
-    recognition.onresult = (event: any) => {
+    // Fires everytime speech engine has something new to report.
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
       let interim = ''
-      for (let i = event.resultIndex; i < event.results.length; i++) {
+      for (let i = event.resultIndex; i < event.results.length; i++) { // Loops over new results since the last event
         const result = event.results[i]
-        if (result.isFinal) accumulated.push(result[0].transcript)
-        else interim = result[0].transcript
+        if (result.isFinal) accumulated.push(result[0].transcript) // if engine is confident user finished saying, adds to accumulated
+        else interim = result[0].transcript 
       }
-      setAskTranscript(accumulated.join(' ') + (interim ? ' ' + interim : ''))
+      setAskTranscript(accumulated.join(' ') + (interim ? ' ' + interim : '')) // makes a transcript
     }
 
-    recognition.onend = () => {
-      setTalkListening(false)
+    recognition.onend = () => { // when microphone session ends
+      setTalkListening(false) // set mic to not active 
       talkRecognitionRef.current = null
-      const final = accumulated.join(' ').trim()
+      const final = accumulated.join(' ').trim() 
       if (final) sendToAlex(final, 'talk')
     }
 
-    recognition.onerror = (e: any) => {
+    recognition.onerror = (e: SpeechRecognitionErrorEvent) => {
       if (e.error === 'no-speech') return
       setTalkListening(false)
       talkRecognitionRef.current = null
