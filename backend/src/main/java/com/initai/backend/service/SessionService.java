@@ -109,6 +109,24 @@ public class SessionService {
         return HintResponse.builder().reply(reply).build();
     }
 
+    public HintResponse handleTalk(String sessionId, String code, String question) {
+        Session session = getSession(sessionId);
+        if (session.getPhase() != SessionPhase.CODING) {
+            throw new IllegalStateException("Session is not in coding phase");
+        }
+
+        Problem problem = problemRepository.findById(session.getProblemId())
+            .orElseThrow(() -> new RuntimeException("Problem not found"));
+
+        String systemPrompt = promptService.buildTalkPrompt(problem, code, question);
+        String reply = claudeService.call(systemPrompt, List.of(
+            new Message("user", "Respond now.")
+        ), 256);
+
+        sessionRepository.save(session);
+        return HintResponse.builder().reply(reply).build();
+    }
+
     public SubmitResponse handleSubmission(String sessionId, String code, String language) {
         Session session = getSession(sessionId);
         session.setFinalCode(code);

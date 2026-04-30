@@ -47,6 +47,13 @@ public class SessionController {
         return ResponseEntity.ok(sessionService.handleHint(id, request.getCode(), request.getQuestion()));
     }
 
+    @PostMapping("/{id}/talk")
+    public ResponseEntity<HintResponse> talk(
+            @PathVariable String id,
+            @RequestBody HintRequest request) {
+        return ResponseEntity.ok(sessionService.handleTalk(id, request.getCode(), request.getQuestion()));
+    }
+
     @PostMapping("/{id}/submit")
     public ResponseEntity<SubmitResponse> submit(
             @PathVariable String id,

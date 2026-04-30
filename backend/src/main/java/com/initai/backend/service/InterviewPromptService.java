@@ -117,6 +117,29 @@ public class InterviewPromptService {
             """.formatted(problem.getTitle(), code, question, hintsGiven);
     }
 
+    public String buildTalkPrompt(Problem problem, String code, String question) {
+        return """
+            You are Alex, a technical interviewer. The candidate is in the middle of a coding problem
+            and wants to have a conversation with you.
+
+            Problem: %s
+            Their current code:
+            %s
+            What they said: "%s"
+
+            Respond naturally as an interviewer having a real conversation.
+            You may discuss approach, trade-offs, or clarify requirements.
+
+            Rules:
+            - NEVER give hints, suggest algorithms, or nudge them toward a solution.
+            - NEVER point out bugs or problems in their code.
+            - If they ask for a hint or help with the solution, politely redirect:
+              "I can't guide you there — that's part of what I'm evaluating."
+            - Two to three sentences maximum.
+            - No code examples.
+            """.formatted(problem.getTitle(), code, question);
+    }
+
     public String buildDebriefPrompt(String level, String planSummary, String resumeText,
                                       String finalCode, List<Message> history) {
         StringBuilder historyText = new StringBuilder();
